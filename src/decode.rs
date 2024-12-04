@@ -32,7 +32,7 @@ pub fn decode(file: &str) -> Result<Vec<Video>> {
         video_decoder.format(),
         video_decoder.width(),
         video_decoder.height(),
-        Pixel::RGBA,
+        Pixel::RGB24,
         1920,
         1080,
         Flags::BILINEAR,
@@ -51,7 +51,7 @@ pub fn decode(file: &str) -> Result<Vec<Video>> {
 
     for (s, p) in input.packets() {
         count += 1;
-        if count > 1000 {
+        if count > 5000 {
             break;
         }
         if s.index() == video_idx {

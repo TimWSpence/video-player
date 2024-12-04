@@ -52,7 +52,7 @@ pub fn main() -> Result<()> {
             // t.fill_rect(Rect::new(0, 0, 1920, 1080)).unwrap();
         })?;
         canvas.clear();
-        texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 7680)?;
+        texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
         ::std::thread::sleep(Duration::from_millis(10));
