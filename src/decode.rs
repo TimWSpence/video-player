@@ -1,13 +1,16 @@
 use anyhow::{anyhow, Result};
-use decoder::video;
 use ffmpeg::*;
 use ffmpeg::{format, media};
 use ffmpeg_next as ffmpeg;
+use frame::Video;
 use software::scaling::Flags;
 use util::format::Pixel;
 
-pub fn decode(file: &str) -> Result<()> {
+pub fn decode(file: &str) -> Result<Vec<Video>> {
     ffmpeg::init()?;
+
+    let mut res = vec![];
+    let mut count = 0;
 
     let mut input = format::input(file)?;
 
@@ -25,7 +28,7 @@ pub fn decode(file: &str) -> Result<()> {
     let video_ctx = ffmpeg::codec::context::Context::from_parameters(video.parameters())?;
     let mut video_decoder = video_ctx.decoder().video()?;
 
-    let scaler = ffmpeg::software::scaling::context::Context::get(
+    let mut scaler = ffmpeg::software::scaling::context::Context::get(
         video_decoder.format(),
         video_decoder.width(),
         video_decoder.height(),
@@ -35,9 +38,22 @@ pub fn decode(file: &str) -> Result<()> {
         Flags::BILINEAR,
     )?;
 
-    let mut process = |decoder: &mut ffmpeg::decoder::Video| -> Result<()> { Ok(()) };
+    let mut process = |decoder: &mut ffmpeg::decoder::Video| -> Result<()> {
+        let mut frame = Video::empty();
+        while decoder.receive_frame(&mut frame).is_ok() {
+            let mut rgb_frame = Video::empty();
+            scaler.run(&frame, &mut rgb_frame)?;
+            res.push(rgb_frame);
+        }
+
+        Ok(())
+    };
 
     for (s, p) in input.packets() {
+        count += 1;
+        if count > 100 {
+            break;
+        }
         if s.index() == video_idx {
             video_decoder.send_packet(&p)?;
             process(&mut video_decoder)?;
@@ -46,5 +62,5 @@ pub fn decode(file: &str) -> Result<()> {
     video_decoder.send_eof()?;
     process(&mut video_decoder)?;
 
-    Ok(())
+    Ok(res)
 }
