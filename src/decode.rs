@@ -32,6 +32,7 @@ pub fn decode(file: &str) -> Result<(Vec<Video>, Vec<Audio>)> {
 
     let audio_ctx = ffmpeg::codec::context::Context::from_parameters(audio.parameters())?;
     let mut audio_decoder = audio_ctx.decoder().audio()?;
+    // audio_decoder.resampler(Sam, channel_layout, rate)
 
     println!(
         "Audio: sample rate {}, channels {}",

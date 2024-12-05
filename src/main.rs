@@ -2,8 +2,9 @@ extern crate sdl2;
 
 use anyhow::Result;
 
+use cpal::traits::*;
 use ffmpeg_next::frame::Audio;
-use sdl2::audio::{AudioCallback, AudioQueue, AudioSpecDesired};
+use itertools::Itertools;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::{Color, PixelFormatEnum};
@@ -14,40 +15,52 @@ use std::time::Duration;
 
 mod decode;
 
-struct AudioData {
-    frames: Vec<Audio>,
-}
-// format is F32 Planar
-
-impl AudioCallback for AudioData {
-    type Channel = f32;
-
-    fn callback(&mut self, _data: &mut [f32]) {
-        todo!()
-    }
-}
-
 pub fn main() -> Result<()> {
     let (video_frames, audio_frames) = decode::decode(
         "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
     )?;
 
+    let mut audio_bytes: Vec<f32> = audio_frames
+        .iter()
+        .flat_map(|f| {
+            f.data(0)
+                .chunks_exact(4)
+                .map(TryInto::try_into)
+                .map(Result::unwrap)
+                .map(f32::from_be_bytes)
+        })
+        .interleave(audio_frames.iter().flat_map(|f| {
+            f.data(1)
+                .chunks_exact(4)
+                .map(TryInto::try_into)
+                .map(Result::unwrap)
+                .map(f32::from_be_bytes)
+        }))
+        .collect();
+    let mut audio_bytes_idx = 0;
+
     let shutdown = AtomicBool::new(false);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let audio_subsystem = sdl_context.audio().unwrap();
 
-    let desired_spec = AudioSpecDesired {
-        freq: Some(44_100),
-        channels: Some(2),
-        samples: None,
-    };
+    let host = cpal::default_host();
 
-    let audio_device: AudioQueue<u8> = audio_subsystem.open_queue(None, &desired_spec).unwrap();
-    for f in audio_frames {
-        audio_device.queue_audio(f.data(0)).unwrap();
-    }
+    let device = host.default_output_device().unwrap();
+    let audio_cfg = device.default_output_config()?;
+
+    let audio = device.build_output_stream(
+        &audio_cfg.into(),
+        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            for f in data.chunks_exact_mut(2) {
+                f[0] = audio_bytes[audio_bytes_idx];
+                f[1] = audio_bytes[audio_bytes_idx + 1];
+                audio_bytes_idx += 2;
+            }
+        },
+        |err| eprintln!("{}", err),
+        None,
+    )?;
 
     let window = video_subsystem
         .window("hacky video player", 1920, 1080)
@@ -63,7 +76,8 @@ pub fn main() -> Result<()> {
     canvas.set_draw_color(Color::RGB(255, 0, 0));
     canvas.clear();
     canvas.present();
-    audio_device.resume();
+
+    audio.play()?;
 
     'main: for f in video_frames {
         if shutdown.load(Ordering::Acquire) {
