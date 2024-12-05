@@ -1,4 +1,6 @@
 use anyhow::{anyhow, Result};
+use codec::audio;
+use ffmpeg::util::channel_layout::ChannelLayout;
 use ffmpeg::*;
 use ffmpeg::{format, media};
 use ffmpeg_next as ffmpeg;
@@ -32,7 +34,11 @@ pub fn decode(file: &str) -> Result<(Vec<Video>, Vec<Audio>)> {
 
     let audio_ctx = ffmpeg::codec::context::Context::from_parameters(audio.parameters())?;
     let mut audio_decoder = audio_ctx.decoder().audio()?;
-    // audio_decoder.resampler(Sam, channel_layout, rate)
+    let mut resampler = audio_decoder.resampler(
+        format::Sample::F32(format::sample::Type::Packed),
+        ChannelLayout::STEREO,
+        audio_decoder.rate(),
+    )?;
 
     println!(
         "Audio: sample rate {}, channels {}",
@@ -64,7 +70,9 @@ pub fn decode(file: &str) -> Result<(Vec<Video>, Vec<Audio>)> {
     let mut process_audio = |decoder: &mut ffmpeg::decoder::Audio| -> Result<()> {
         let mut frame = Audio::empty();
         while decoder.receive_frame(&mut frame).is_ok() {
-            audio_frames.push(frame.clone());
+            let mut f = Audio::empty();
+            resampler.run(&frame, &mut f)?;
+            audio_frames.push(f);
         }
 
         Ok(())

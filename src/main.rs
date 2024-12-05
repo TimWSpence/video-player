@@ -20,7 +20,7 @@ pub fn main() -> Result<()> {
         "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
     )?;
 
-    let mut audio_bytes: Vec<f32> = audio_frames
+    let audio_bytes: Vec<f32> = audio_frames
         .iter()
         .flat_map(|f| {
             f.data(0)
@@ -29,13 +29,6 @@ pub fn main() -> Result<()> {
                 .map(Result::unwrap)
                 .map(f32::from_be_bytes)
         })
-        .interleave(audio_frames.iter().flat_map(|f| {
-            f.data(1)
-                .chunks_exact(4)
-                .map(TryInto::try_into)
-                .map(Result::unwrap)
-                .map(f32::from_be_bytes)
-        }))
         .collect();
     let mut audio_bytes_idx = 0;
 
@@ -52,10 +45,9 @@ pub fn main() -> Result<()> {
     let audio = device.build_output_stream(
         &audio_cfg.into(),
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            for f in data.chunks_exact_mut(2) {
-                f[0] = audio_bytes[audio_bytes_idx];
-                f[1] = audio_bytes[audio_bytes_idx + 1];
-                audio_bytes_idx += 2;
+            for f in data {
+                *f = audio_bytes[audio_bytes_idx];
+                audio_bytes_idx += 1;
             }
         },
         |err| eprintln!("{}", err),
