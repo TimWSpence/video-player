@@ -11,7 +11,7 @@ use std::time::Duration;
 mod decode;
 
 pub fn main() -> Result<()> {
-    let frames = decode::decode(
+    let (video_frames, audio_frames) = decode::decode(
         "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
     )?;
 
@@ -34,7 +34,7 @@ pub fn main() -> Result<()> {
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    for f in frames {
+    for f in video_frames {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -55,7 +55,7 @@ pub fn main() -> Result<()> {
         texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
-        ::std::thread::sleep(Duration::from_millis(10));
+        ::std::thread::sleep(Duration::from_millis(1000 / 60));
         // The rest of the game loop goes here...
     }
 
