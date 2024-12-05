@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use codec::audio;
 use cpal::StreamConfig;
 use ffmpeg::util::channel_layout::ChannelLayout;
 use ffmpeg::*;
@@ -76,8 +75,11 @@ pub fn decode(file: &str, audio_cfg: &StreamConfig) -> Result<(Vec<Video>, Vec<A
         let mut frame = Audio::empty();
         while decoder.receive_frame(&mut frame).is_ok() {
             let mut f = Audio::empty();
-            resampler.run(&frame, &mut f)?;
-            audio_frames.push(f);
+            let mut delay = resampler.run(&frame, &mut f)?;
+            while let Some(_d) = delay {
+                audio_frames.push(f.clone());
+                delay = resampler.flush(&mut f)?;
+            }
         }
 
         Ok(())
