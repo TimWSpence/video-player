@@ -46,11 +46,7 @@ pub fn main() -> Result<()> {
             }
         }
 
-        canvas.with_texture_canvas(&mut texture, |t| {
-            // t.clear();
-            // t.set_draw_color(Color::RGB(255, 0, 0));
-            // t.fill_rect(Rect::new(0, 0, 1920, 1080)).unwrap();
-        })?;
+        canvas.with_texture_canvas(&mut texture, |_t| {})?;
         canvas.clear();
         texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
         canvas.copy(&texture, None, None).unwrap();
