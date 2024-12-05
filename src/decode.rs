@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use codec::audio;
+use cpal::StreamConfig;
 use ffmpeg::util::channel_layout::ChannelLayout;
 use ffmpeg::*;
 use ffmpeg::{format, media};
@@ -8,7 +9,7 @@ use frame::{Audio, Video};
 use software::scaling::Flags;
 use util::format::Pixel;
 
-pub fn decode(file: &str) -> Result<(Vec<Video>, Vec<Audio>)> {
+pub fn decode(file: &str, audio_cfg: &StreamConfig) -> Result<(Vec<Video>, Vec<Audio>)> {
     ffmpeg::init()?;
 
     let mut video_frames = vec![];
@@ -36,8 +37,12 @@ pub fn decode(file: &str) -> Result<(Vec<Video>, Vec<Audio>)> {
     let mut audio_decoder = audio_ctx.decoder().audio()?;
     let mut resampler = audio_decoder.resampler(
         format::Sample::F32(format::sample::Type::Packed),
-        ChannelLayout::STEREO,
-        audio_decoder.rate(),
+        match audio_cfg.channels {
+            1 => ChannelLayout::MONO,
+            2 => ChannelLayout::STEREO,
+            _ => panic!("Unsupported channel layout"),
+        },
+        audio_cfg.sample_rate.0,
     )?;
 
     println!(

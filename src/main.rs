@@ -16,8 +16,17 @@ use std::time::Duration;
 mod decode;
 
 pub fn main() -> Result<()> {
+    let shutdown = AtomicBool::new(false);
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    let host = cpal::default_host();
+    let device = host.default_output_device().unwrap();
+    let audio_cfg = device.default_output_config()?.into();
+
     let (video_frames, audio_frames) = decode::decode(
         "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+        &audio_cfg,
     )?;
 
     let audio_bytes: Vec<f32> = audio_frames
@@ -32,18 +41,8 @@ pub fn main() -> Result<()> {
         .collect();
     let mut audio_bytes_idx = 0;
 
-    let shutdown = AtomicBool::new(false);
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-
-    let host = cpal::default_host();
-
-    let device = host.default_output_device().unwrap();
-    let audio_cfg = device.default_output_config()?;
-
     let audio = device.build_output_stream(
-        &audio_cfg.into(),
+        &audio_cfg,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for f in data {
                 *f = audio_bytes[audio_bytes_idx];
