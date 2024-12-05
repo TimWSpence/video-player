@@ -9,3 +9,4 @@ ffmpeg-next = "7.1.0"
 cpal = "0.15.3"
 sdl2 = { version = "0.37.0", features = [] }
 itertools = "0.13.0"
+ringbuf = "0.2.0"

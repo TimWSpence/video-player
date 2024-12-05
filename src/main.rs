@@ -2,63 +2,60 @@ extern crate sdl2;
 
 use anyhow::Result;
 
-use cpal::{traits::*, StreamConfig};
-use ffmpeg_next::frame::Audio;
-use itertools::Itertools;
+use cpal::{traits::*, Sample, StreamConfig};
+use ringbuf::RingBuffer;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::{Color, PixelFormatEnum};
 use sdl2::rect::Rect;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::sync_channel;
+use std::thread;
 use std::time::Duration;
 
-mod decode;
+mod decode_audio;
+mod decode_video;
 
 pub fn main() -> Result<()> {
+    //let file =  "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
+    // let file = "https://ia903405.us.archive.org/27/items/archive-video-files/test.mp4";
+    let file = "video.mp4";
+
     let shutdown = AtomicBool::new(false);
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
     let host = cpal::default_host();
     let device = host.default_output_device().unwrap();
-    // let audio_cfg = device
-    //     .supported_output_configs()?
-    //     .filter(|f| f.channels() == 2)
-    //     .sorted_unstable_by(|a, b| a.cmp_default_heuristics(b))
-    //     .next()
-    //     .unwrap()
-    //     .into();
-    // let audio_cfg = StreamConfig {
-    //     channels: 2,
-    //     sample_rate: cpal::SampleRate(44_100),
-    //     buffer_size: cpal::BufferSize::Fixed(4096),
-    // };
-    let audio_cfg = device.default_output_config()?.into();
+    let audio_cfg: cpal::SupportedStreamConfig = device
+        .supported_output_configs()
+        .unwrap()
+        .next()
+        .unwrap()
+        .with_max_sample_rate();
+    println!("{:?}", audio_cfg);
 
-    let (video_frames, audio_frames) = decode::decode(
-        "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-        &audio_cfg,
-    )?;
+    let (video_producer, video_consumer) = sync_channel(8192);
 
-    let audio_bytes: Vec<f32> = audio_frames
-        .iter()
-        .flat_map(|f| {
-            f.data(0)
-                .chunks_exact(4)
-                .map(TryInto::try_into)
-                .map(Result::unwrap)
-                .map(f32::from_be_bytes)
-        })
-        .collect();
-    let mut audio_bytes_idx = 0;
+    let video_thread = thread::spawn(|| decode_video::decode(file, video_producer).unwrap());
+
+    let audio_buf = RingBuffer::<f32>::new(16384);
+    let (audio_producer, mut audio_consumer) = audio_buf.split();
+
+    let cfg = audio_cfg.clone();
+    let audio_thread = thread::spawn(move || {
+        decode_audio::decode(file, &cfg, audio_producer).unwrap();
+    });
 
     let audio = device.build_output_stream(
-        &audio_cfg,
+        &audio_cfg.into(),
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             for f in data {
-                *f = audio_bytes[audio_bytes_idx];
-                audio_bytes_idx += 1;
+                *f = match audio_consumer.pop() {
+                    Some(t) => t,
+                    None => Sample::from_sample(0.0f32),
+                }
             }
         },
         |err| eprintln!("{}", err),
@@ -82,7 +79,7 @@ pub fn main() -> Result<()> {
 
     audio.play()?;
 
-    'main: for f in video_frames {
+    'main: loop {
         if shutdown.load(Ordering::Acquire) {
             break;
         }
@@ -97,15 +94,24 @@ pub fn main() -> Result<()> {
                 _ => {}
             }
         }
-        canvas.with_texture_canvas(&mut texture, |_t| {})?;
-        canvas.clear();
-        texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
-        canvas.copy(&texture, None, None).unwrap();
-        canvas.present();
-        ::std::thread::sleep(Duration::from_millis(1000 / 60));
+
+        match video_consumer.recv() {
+            Ok(f) => {
+                canvas.with_texture_canvas(&mut texture, |_t| {})?;
+                canvas.clear();
+                texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
+                canvas.copy(&texture, None, None).unwrap();
+                canvas.present();
+                ::std::thread::sleep(Duration::from_millis(1000 / 60));
+            }
+            _ => break 'main,
+        }
     }
 
     shutdown.store(true, Ordering::Release);
+
+    audio_thread.join().unwrap();
+    video_thread.join().unwrap();
 
     Ok(())
 }
