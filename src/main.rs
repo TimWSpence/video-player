@@ -2,7 +2,7 @@ extern crate sdl2;
 
 use anyhow::Result;
 
-use cpal::traits::*;
+use cpal::{traits::*, StreamConfig};
 use ffmpeg_next::frame::Audio;
 use itertools::Itertools;
 use sdl2::event::Event;
@@ -22,6 +22,18 @@ pub fn main() -> Result<()> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let host = cpal::default_host();
     let device = host.default_output_device().unwrap();
+    // let audio_cfg = device
+    //     .supported_output_configs()?
+    //     .filter(|f| f.channels() == 2)
+    //     .sorted_unstable_by(|a, b| a.cmp_default_heuristics(b))
+    //     .next()
+    //     .unwrap()
+    //     .into();
+    // let audio_cfg = StreamConfig {
+    //     channels: 2,
+    //     sample_rate: cpal::SampleRate(44_100),
+    //     buffer_size: cpal::BufferSize::Fixed(4096),
+    // };
     let audio_cfg = device.default_output_config()?.into();
 
     let (video_frames, audio_frames) = decode::decode(
