@@ -33,7 +33,6 @@ pub fn decode(file: &str, audio_cfg: &SupportedStreamConfig, mut buf: Producer<f
             let mut f = Audio::empty();
             let mut delay = resampler.run(&frame, &mut f)?;
             loop {
-                println!("{}", ffmpeg_frame_to_slice::<f32>(&f).len());
                 blocking_write(ffmpeg_frame_to_slice(&f), &mut buf)?;
                 if delay.is_none() {
                     break;

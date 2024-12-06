@@ -2,7 +2,7 @@ extern crate sdl2;
 
 use anyhow::Result;
 
-use cpal::{traits::*, Sample, StreamConfig};
+use cpal::{traits::*, Sample};
 use ringbuf::RingBuffer;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -18,9 +18,9 @@ mod decode_audio;
 mod decode_video;
 
 pub fn main() -> Result<()> {
-    //let file =  "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
+    let file = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4";
     // let file = "https://ia903405.us.archive.org/27/items/archive-video-files/test.mp4";
-    let file = "video.mp4";
+    // let file = "video.mp4";
 
     let shutdown = AtomicBool::new(false);
     let sdl_context = sdl2::init().unwrap();
@@ -34,7 +34,6 @@ pub fn main() -> Result<()> {
         .next()
         .unwrap()
         .with_max_sample_rate();
-    println!("{:?}", audio_cfg);
 
     let (video_producer, video_consumer) = sync_channel(8192);
 
