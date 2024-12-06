@@ -10,6 +10,7 @@ use util::format::Pixel;
 
 pub struct Metadata {
     pub frame_rate: Rational,
+    pub time_base: Rational,
 }
 
 pub fn metadata(file: &str) -> Result<Metadata> {
@@ -24,6 +25,7 @@ pub fn metadata(file: &str) -> Result<Metadata> {
 
     Ok(Metadata {
         frame_rate: video_ctx.frame_rate(),
+        time_base: video.time_base(),
     })
 }
 
