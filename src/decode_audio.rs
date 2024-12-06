@@ -23,23 +23,21 @@ pub fn decode(file: &str, audio_cfg: &SupportedStreamConfig, mut buf: Producer<f
     let mut audio_decoder = audio_ctx.decoder().audio()?;
     let mut resampler = audio_decoder.resampler(
         format::Sample::F32(format::sample::Type::Packed),
-        match audio_cfg.channels() {
-            1 => ChannelLayout::MONO,
-            2 => ChannelLayout::STEREO,
-            _ => panic!("Unsupported channel layout"),
-        },
+        ffmpeg::ChannelLayout::default(audio_cfg.channels().into()),
         audio_cfg.sample_rate().0,
     )?;
 
     let mut process_audio = |decoder: &mut ffmpeg::decoder::Audio| -> Result<()> {
         let mut frame = Audio::empty();
         while decoder.receive_frame(&mut frame).is_ok() {
-            println!("Process audio frame");
             let mut f = Audio::empty();
             let mut delay = resampler.run(&frame, &mut f)?;
-            while let Some(_d) = delay {
+            loop {
                 println!("{}", ffmpeg_frame_to_slice::<f32>(&f).len());
                 blocking_write(ffmpeg_frame_to_slice(&f), &mut buf)?;
+                if delay.is_none() {
+                    break;
+                }
                 delay = resampler.flush(&mut f)?;
             }
         }
@@ -80,7 +78,6 @@ fn blocking_write<T: Copy>(data: &[T], buf: &mut Producer<T>) -> Result<()> {
     while buf.remaining() < data.len() {
         thread::sleep(Duration::from_millis(10));
     }
-    println!("Writing {} to buf", data.len());
     buf.push_slice(data);
     Ok(())
 }
