@@ -8,6 +8,25 @@ use frame::Video;
 use software::scaling::Flags;
 use util::format::Pixel;
 
+pub struct Metadata {
+    pub frame_rate: Rational,
+}
+
+pub fn metadata(file: &str) -> Result<Metadata> {
+    let input = format::input(file)?;
+
+    let video = input
+        .streams()
+        .best(media::Type::Video)
+        .ok_or(anyhow!("Could not find video stream"))?;
+
+    let video_ctx = ffmpeg::codec::context::Context::from_parameters(video.parameters())?;
+
+    Ok(Metadata {
+        frame_rate: video_ctx.frame_rate(),
+    })
+}
+
 pub fn decode(file: &str, buf: SyncSender<Video>) -> Result<()> {
     let mut input = format::input(file)?;
 

@@ -76,6 +76,8 @@ pub fn main() -> Result<()> {
     canvas.clear();
     canvas.present();
 
+    let metadata = decode_video::metadata(file)?;
+
     audio.play()?;
 
     'main: loop {
@@ -101,7 +103,11 @@ pub fn main() -> Result<()> {
                 texture.update(Rect::new(0, 0, 1920, 1080), f.data(0), 5760)?;
                 canvas.copy(&texture, None, None).unwrap();
                 canvas.present();
-                ::std::thread::sleep(Duration::from_millis(1000 / 60));
+                ::std::thread::sleep(Duration::from_millis(
+                    ((1000 * metadata.frame_rate.denominator()) / metadata.frame_rate.numerator())
+                        .try_into()
+                        .unwrap(),
+                ));
             }
             _ => break 'main,
         }

@@ -2,8 +2,7 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
-use cpal::{SupportedStreamConfig, SupportedStreamConfigRange};
-use ffmpeg::util::channel_layout::ChannelLayout;
+use cpal::SupportedStreamConfig;
 use ffmpeg::*;
 use ffmpeg::{format, media};
 use ffmpeg_next as ffmpeg;
